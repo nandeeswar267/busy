@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Simple Chat Application</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        #user-list,
+        #messages,
+        #typing-indicator {
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 600px;
+            overflow: auto;
+        }
+
+        #user-list p,
+        #typing-indicator {
+            color: #888;
+            font-style: italic;
+        }
+
+        #typing-indicator {
+            margin-top: 5px;  /* Adjusted margin for better spacing */
+        }
+
+        form {
+            display: flex;
+            width: 100%;
+            max-width: 600px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin-left: 10px;
+            background-color: #4caf50;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        @media only screen and (max-width: 600px) {
+            #user-list,
+            #messages,
+            #typing-indicator,
+            form,
+            input[type="text"],
+            button {
+                width: 100%;
+                max-width: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Simple Chat Application</h1>
+    <div id="user-list"></div> 
+    <div id="messages"></div>
+    <div id="typing-indicator"></div>
+    <form id="chat-form">
+        <input type="text" id="message-input" placeholder="Type a message...">
+        <button type="submit">Send</button>
+    </form>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let userName;
+
+        // Ask for the user's name when the page loads
+        window.onload = () => {
+            userName = prompt("Please enter your name:");
+            // Emit the user's name to the server
+            socket.emit('user connected', { name: userName, id: socket.id });
+        };
+
+        // Handle form submission
+        document.getElementById('chat-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const messageInput = document.getElementById('message-input');
+            const message = messageInput.value.trim();
+            if (message) {
+                let data = {
+                    message: message,
+                    sender: userName // Use the user's name as the sender
+                }
+                socket.emit('chat message', data);
+                messageInput.value = '';
+            }
+        });
+             // Handle received user list
+            socket.on('user list', (users) => {
+            const userListDiv = document.getElementById('user-list');
+            userListDiv.innerHTML = `<p>Connected Users: ${users.join(', ')}</p>`;
+        });
+        // Handle received messages
+        socket.on('chat message', (msg) => {
+            const messagesDiv = document.getElementById('messages');
+            const messageElement = document.createElement('div');
+            messageElement.textContent = `${msg['sender']}: ${msg['message']}`;
+            messagesDiv.appendChild(messageElement);
+        });
+          // Handle typing notifications
+          const typingIndicator = document.getElementById('typing-indicator');
+        let isTyping = false;
+
+        document.getElementById('message-input').addEventListener('input', () => {
+            if (!isTyping) {
+                isTyping = true;
+                socket.emit('typing', { userName, isTyping });
+            }
+
+            // Reset typing status after 1 second of inactivity
+            setTimeout(() => {
+                if (isTyping) {
+                    isTyping = false;
+                    socket.emit('typing', { userName, isTyping });
+                }
+            }, 1000);
+        });
+
+        // Listen for typing notifications
+        socket.on('typing', ({ userName, isTyping }) => {
+            if (isTyping) {
+                typingIndicator.textContent = `${userName} is typing...`;
+            } else {
+                typingIndicator.textContent = '';
+            }
+        });
+    </script>
+</body>
+
+</html>
